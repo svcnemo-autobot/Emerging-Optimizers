@@ -505,11 +505,11 @@ def update_eigenbasis_and_exp_avgs(
             eigenbasis_list,
             power_iter_steps,
         )
-        updated_eigvals_list, updated_eigenbasis_list, exp_avg_sq = soap_utils.sort_eigenbasis_and_exp_avg_sq(
-            updated_eigvals_list,
-            updated_eigenbasis_list,
-            exp_avg_sq,
-        )
+
+    for eigvals, eigenbasis in zip(updated_eigvals_list, updated_eigenbasis_list, strict=True):
+        mask = eigvals < 1e-8
+        eigvals[mask] = 0.0
+        eigenbasis[:, mask] = 0.0
 
     # Step 3: Project exp_avg to the new eigenbasis using the updated eigenbases
     exp_avg = precondition(

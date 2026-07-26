@@ -137,7 +137,9 @@ def get_eigenbasis_qr(
             power_iter_steps=power_iter_steps,
         )
         with utils.fp32_matmul_precision("highest"):
-            updated_eigvals_list.append(eig_utils.conjugate(kronecker_factor, Q, diag=True))
-        updated_eigenbasis_list.append(Q)
+            approx_eigvals = eig_utils.conjugate(kronecker_factor, Q, diag=True)
+        sort_idx = torch.argsort(approx_eigvals, descending=True)
+        updated_eigvals_list.append(approx_eigvals[sort_idx])
+        updated_eigenbasis_list.append(Q[:, sort_idx])
 
     return updated_eigvals_list, updated_eigenbasis_list
