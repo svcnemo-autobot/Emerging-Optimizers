@@ -12,7 +12,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING, Callable, Literal, override
+from typing import TYPE_CHECKING, Callable, override
+
+from emerging_optimizers.riemannian_optimizers.retractions.stiefel import (
+    RetractionT,
+    cayley_retraction,
+    newton_schulz_retraction,
+    polar_retraction,
+    qr_retraction,
+)
 
 
 if TYPE_CHECKING:
@@ -25,43 +33,6 @@ from emerging_optimizers import registry, utils
 
 
 __all__ = ["Iso"]
-
-RetractionT = Literal["qr", "polar", "cayley"]
-
-
-def _qr_retraction(
-    point: torch.Tensor,
-    momentum: torch.Tensor,
-    step_size: float,
-) -> torch.Tensor:
-    matrix = point - step_size * momentum
-    q, r = torch.linalg.qr(matrix, mode="reduced")
-    signs = torch.diagonal(r).sign()
-    signs.masked_fill_(signs == 0, 1)
-    return q * signs
-
-
-def _polar_retraction(
-    point: torch.Tensor,
-    momentum: torch.Tensor,
-    step_size: float,
-) -> torch.Tensor:
-    matrix = point - step_size * momentum
-    u, _, vh = torch.linalg.svd(matrix, full_matrices=False)
-    return u @ vh
-
-
-def _cayley_retraction(
-    point: torch.Tensor,
-    momentum: torch.Tensor,
-    step_size: float,
-) -> torch.Tensor:
-    direction = -momentum
-    skew = direction @ point.mT - point @ direction.mT
-    identity = torch.eye(point.shape[0], dtype=point.dtype, device=point.device)
-    lhs = identity - 0.5 * step_size * skew
-    rhs = (identity + 0.5 * step_size * skew) @ point
-    return torch.linalg.solve(lhs, rhs)
 
 
 def _retract_factors(
@@ -89,11 +60,13 @@ def _retract_factors(
         ValueError: If the retraction method is unsupported.
     """
     if retraction == "qr":
-        retract = _qr_retraction
+        retract = qr_retraction
     elif retraction == "polar":
-        retract = _polar_retraction
+        retract = polar_retraction
     elif retraction == "cayley":
-        retract = _cayley_retraction
+        retract = cayley_retraction
+    elif retraction == "newton_schulz":
+        retract = newton_schulz_retraction
     else:
         raise ValueError(f"Invalid retraction: {retraction}")
 
@@ -138,7 +111,7 @@ class Iso(Optimizer):
             raise ValueError(f"Invalid learning rate: {lr}")
         if not 0.0 <= momentum < 1.0:
             raise ValueError(f"Invalid momentum value: {momentum}")
-        if retraction not in ("qr", "polar", "cayley"):
+        if retraction not in ("qr", "polar", "cayley", "newton_schulz"):
             raise ValueError(f"Invalid retraction: {retraction}")
 
         defaults = {
